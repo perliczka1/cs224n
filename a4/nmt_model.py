@@ -247,7 +247,14 @@ class NMT(nn.Module):
 
 
         ### END YOUR CODE
-
+        enc_hiddens_proj = self.att_projection(enc_hiddens)
+        Y = self.model_embeddings.target(target_padded)
+        (ht, ct) = dec_init_state
+        Y_chunks = torch.split(Y, dim=0)
+        for Y_t in Y_chunks:
+            Y_t = torch.squeeze(Y_t)
+            Ybar_t = torch.cat((Y_t, o_prev), dim=1)
+            cell, state = self.decoder(Ybar_t, (ht, ct))
         return combined_outputs
 
 
