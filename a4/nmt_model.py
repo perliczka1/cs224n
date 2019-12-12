@@ -42,14 +42,14 @@ class NMT(nn.Module):
         self.vocab = vocab
 
         # default values
-        self.encoder = None 
-        self.decoder = None
-        self.h_projection = None
-        self.c_projection = None
-        self.att_projection = None
-        self.combined_output_projection = None
-        self.target_vocab_projection = None
-        self.dropout = None
+        self.encoder = torch.nn.LSTM(input_size=embed_size, hidden_size=hidden_size, bidirectional=True)
+        self.decoder = torch.nn.LSTMCell(input_size=embed_size+hidden_size, hidden_size=hidden_size, bias=True)
+        self.h_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.c_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.att_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.combined_output_projection = torch.nn.Linear(3*hidden_size, hidden_size, bias=False)
+        self.target_vocab_projection = torch.nn.Linear(hidden_size, len(vocab.tgt), bias=False)
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
 
 
         ### YOUR CODE HERE (~8 Lines)
@@ -165,7 +165,19 @@ class NMT(nn.Module):
 
 
         ### END YOUR CODE
+        X = self.model_embeddings.source(source_padded)
+        X_packed = torch.nn.utils.rnn.pack_padded_sequence(X, source_lengths)
+        enc_hiddens, (last_hidden, last_cell) = self.encoder(X_packed)
+        enc_hiddens, lengths = torch.nn.utils.rnn.pad_packed_sequence(enc_hiddens)
+        enc_hiddens = enc_hiddens.permute(1, 0, 2)
 
+        last_hidden = torch.cat((last_hidden[0,:,:], last_hidden[1,:,:]), dim=1)
+        init_decoder_hidden = self.h_projection(last_hidden)
+
+        last_cell = torch.cat((last_cell[0,:,:], last_cell[1,:,:]), dim=1)
+        init_decoder_cell = self.c_projection(last_cell)
+
+        dec_init_state = (init_decoder_hidden, init_decoder_cell)
         return enc_hiddens, dec_init_state
 
 
