@@ -51,6 +51,7 @@ def pad_sents_char(sents, char_pad_token):
     pad_token = [char_pad_token] * max_word_length
     sents_with_word_padded = [[pad_word(w, max_word_length, char_pad_token) for w in s] for s in sents]
     sents_padded = pad_sents(sents_with_word_padded, pad_token)
+
     ### END YOUR CODE
 
     return sents_padded

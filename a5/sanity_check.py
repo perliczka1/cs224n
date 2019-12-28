@@ -126,7 +126,7 @@ def question_1i_sanity_check():
     WORD_EMBED_SIZE = 4
     M_WORD = 6
     K = 5
-    cnn = CNN(EMBED_SIZE, WORD_EMBED_SIZE,  M_WORD, k=K)
+    cnn = CNN(EMBED_SIZE, WORD_EMBED_SIZE, k=K)
     x_reshaped = torch.ones(BATCH_SIZE, EMBED_SIZE, M_WORD, dtype=torch.float)
     x_conv_out = cnn(x_reshaped)
     assert x_conv_out.size() == torch.Size([BATCH_SIZE, WORD_EMBED_SIZE])

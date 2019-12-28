@@ -58,7 +58,7 @@ class VocabEntry(object):
         self.char_unk = self.char2id['<unk>']
         self.start_of_word = self.char2id["{"]
         self.end_of_word = self.char2id["}"]
-        self.char_pad = '<pad>'
+        self.char_pad_ind = self.char2id['<pad>']
         assert self.start_of_word+1 == self.end_of_word
 
         self.id2char = {v: k for k, v in self.char2id.items()} # Converts integers to characters
@@ -175,7 +175,7 @@ class VocabEntry(object):
         ###     Connect `words2charindices()` and `pad_sents_char()` which you've defined in 
         ###     previous parts
         
-        words_ids = pad_sents_char(self.words2charindices(sents), self.char_pad)
+        words_ids = pad_sents_char(self.words2charindices(sents), self.char_pad_ind)
         tensor = torch.tensor(words_ids, device=device).permute(1, 0, 2) #(max sentence length, batch size, max word length)
         return tensor
         ### END YOUR CODE

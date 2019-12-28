@@ -46,6 +46,7 @@ class NMT(nn.Module):
         self.hidden_size = hidden_size
         self.dropout_rate = dropout_rate
         self.vocab = vocab
+        self.device = torch.device('cpu')
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
 
@@ -74,12 +75,14 @@ class NMT(nn.Module):
         # Convert list of lists into tensors
 
         ## A4 code
-        # source_padded = self.vocab.src.to_input_tensor(source, device=self.device)   # Tensor: (src_len, b)
-        # target_padded = self.vocab.tgt.to_input_tensor(target, device=self.device)   # Tensor: (tgt_len, b)
+        source_padded_chars = self.vocab.src.to_input_tensor_char(source, device=self.device)   # Tensor: (src_len, b)
+        target_padded = self.vocab.tgt.to_input_tensor(target, device=self.device)   # Tensor: (tgt_len, b)
+        target_padded_chars = self.tgt.to_input_tensor_char(target, device=self.device)   # Tensor: (src_len, b)
 
-        # enc_hiddens, dec_init_state = self.encode(source_padded, source_lengths)
-        # enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
-        # combined_outputs = self.decode(enc_hiddens, enc_masks, dec_init_state, target_padded)
+        enc_hiddens, dec_init_state = self.encode(source_padded_chars, source_lengths)
+        enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
+        combined_outputs = self.decode(enc_hiddens, enc_masks, dec_init_state, target_padded_chars)
+
         ## End A4 code
 
         ### YOUR CODE HERE for part 1k
@@ -357,11 +360,11 @@ class NMT(nn.Module):
         completed_hypotheses.sort(key=lambda hyp: hyp.score, reverse=True)
         return completed_hypotheses
 
-    @property
-    def device(self) -> torch.device:
-        """ Determine which device to place the Tensors upon, CPU or GPU.
-        """
-        return self.att_projection.weight.device
+    # @property
+    # def device(self) -> torch.device:
+    #     """ Determine which device to place the Tensors upon, CPU or GPU.
+    #     """
+    #     return self.att_projection.weight.device
 
     @staticmethod
     def load(model_path: str, no_char_decoder=False):

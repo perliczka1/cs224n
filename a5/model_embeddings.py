@@ -9,7 +9,6 @@ Sahil Chopra <schopra8@stanford.edu>
 Anand Dhoot <anandd@stanford.edu>
 Michael Hahn <mhahn2@stanford.edu>
 """
-
 import torch.nn as nn
 
 # Do not change these imports; your module names should be
@@ -17,8 +16,8 @@ import torch.nn as nn
 #   `Highway` in the file `highway.py`
 # Uncomment the following two imports once you're ready to run part 1(j)
 
-# from cnn import CNN
-# from highway import Highway
+from cnn import CNN
+from highway import Highway
 
 # End "do not change" 
 
@@ -40,7 +39,14 @@ class ModelEmbeddings(nn.Module):
         ## End A4 code
 
         ### YOUR CODE HERE for part 1j
-
+        pad_token_idx = vocab.char2id['<pad>']
+        self.e_char=50
+        self.embed_size=embed_size
+        p=0.3
+        self.char_embeddings = nn.Embedding(len(vocab.char2id), self.e_char, padding_idx=pad_token_idx)
+        self.cnn = CNN(e_char=self.e_char, e_word=embed_size)
+        self.highway = Highway(e_word=embed_size)
+        self.dropout = nn.Dropout(p)
 
         ### END YOUR CODE
 
@@ -59,7 +65,16 @@ class ModelEmbeddings(nn.Module):
         ## End A4 code
 
         ### YOUR CODE HERE for part 1j
-
+        x = self.char_embeddings(input) # shape (sentence_length, batch_size, max_word_length, e_char)
+        max_word_length = int(x.size()[2])
+        sentence_length = int(x.size()[0])
+        x = x.view(-1, max_word_length, self.e_char) # shape (sentence_length * batch_size, max_word_length, e_char)
+        x_reshaped = x.permute(0, 2, 1)
+        x_conv_out = self.cnn(x_reshaped) # shape (batch size, e_word)
+        x_highway = self.highway(x_conv_out)    # shape (batch size, e_word)
+        output = self.dropout(x_highway)
+        output = output.view(sentence_length, -1, self.embed_size)
+        return output
 
         ### END YOUR CODE
 
