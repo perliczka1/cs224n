@@ -58,6 +58,7 @@ class VocabEntry(object):
         self.char_unk = self.char2id['<unk>']
         self.start_of_word = self.char2id["{"]
         self.end_of_word = self.char2id["}"]
+        self.char_pad = '<pad>'
         assert self.start_of_word+1 == self.end_of_word
 
         self.id2char = {v: k for k, v in self.char2id.items()} # Converts integers to characters
@@ -114,6 +115,20 @@ class VocabEntry(object):
         else:
             return self[word]
 
+    def word2charindices(self, word):
+        result = [self.start_of_word]
+        i = 0
+        while (i < len(word)):
+            for special in ["<unk>", "<pad>"]:
+                if word[i:i + len(special)] == special:
+                    result.append(self.char2id[special])
+                    i = i + len(self.char_unk)
+                    continue
+            result.append(self.char2id[word[i]])
+            i+= 1
+        result.append(self.end_of_word)
+        return result
+
     def words2charindices(self, sents):
         """ Convert list of sentences of words into list of list of list of character indices.
         @param sents (list[list[str]]): sentence(s) in words
@@ -127,7 +142,7 @@ class VocabEntry(object):
         ###
         ###     You must prepend each word with the `start_of_word` character and append 
         ###     with the `end_of_word` character. 
-
+        return [[self.word2charindices(w) for w in s] for s in sents]
 
         ### END YOUR CODE
 
@@ -145,6 +160,7 @@ class VocabEntry(object):
         """
         return [self.id2word[w_id] for w_id in word_ids]
 
+
     def to_input_tensor_char(self, sents: List[List[str]], device: torch.device) -> torch.Tensor:
         """ Convert list of sentences (words) into tensor with necessary padding for 
         shorter sentences.
@@ -159,7 +175,9 @@ class VocabEntry(object):
         ###     Connect `words2charindices()` and `pad_sents_char()` which you've defined in 
         ###     previous parts
         
-
+        words_ids = pad_sents_char(self.words2charindices(sents), self.char_pad)
+        tensor = torch.tensor(words_ids, device=device).permute(1, 0, 2) #(max sentence length, batch size, max word length)
+        return tensor
         ### END YOUR CODE
 
     def to_input_tensor(self, sents: List[List[str]], device: torch.device) -> torch.Tensor:
