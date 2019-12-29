@@ -46,10 +46,17 @@ class NMT(nn.Module):
         self.hidden_size = hidden_size
         self.dropout_rate = dropout_rate
         self.vocab = vocab
-        self.device = torch.device('cpu')
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
 
+        self.encoder = torch.nn.LSTM(input_size=embed_size, hidden_size=hidden_size, bidirectional=True)
+        self.decoder = torch.nn.LSTMCell(input_size=embed_size+hidden_size, hidden_size=hidden_size, bias=True)
+        self.h_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.c_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.att_projection = torch.nn.Linear(2*hidden_size, hidden_size, bias=False)
+        self.combined_output_projection = torch.nn.Linear(3*hidden_size, hidden_size, bias=False)
+        self.target_vocab_projection = torch.nn.Linear(hidden_size, len(vocab.tgt), bias=False)
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
 
         ### END YOUR CODE FROM ASSIGNMENT 4
 
@@ -106,8 +113,6 @@ class NMT(nn.Module):
         target_gold_words_log_prob = torch.gather(P, index=target_padded[1:].unsqueeze(-1), dim=-1).squeeze(-1) * target_masks[1:]
         scores = target_gold_words_log_prob.sum() # mhahn2 Small modification from A4 code.
 
-
-
         if self.charDecoder is not None:
             max_word_len = target_padded_chars.shape[-1]
 
@@ -140,6 +145,19 @@ class NMT(nn.Module):
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
         ### Except replace "self.model_embeddings.source" with "self.model_embeddings_source"
 
+        X = self.model_embeddings_source(source_padded)
+        X_packed = torch.nn.utils.rnn.pack_padded_sequence(X, source_lengths)
+        enc_hiddens, (last_hidden, last_cell) = self.encoder(X_packed)
+        enc_hiddens, lengths = torch.nn.utils.rnn.pad_packed_sequence(enc_hiddens)
+        enc_hiddens = enc_hiddens.permute(1, 0, 2)
+
+        last_hidden = torch.cat((last_hidden[0,:,:], last_hidden[1,:,:]), dim=1)
+        init_decoder_hidden = self.h_projection(last_hidden)
+
+        last_cell = torch.cat((last_cell[0,:,:], last_cell[1,:,:]), dim=1)
+        init_decoder_cell = self.c_projection(last_cell)
+
+        dec_init_state = (init_decoder_hidden, init_decoder_cell)
 
         ### END YOUR CODE FROM ASSIGNMENT 4
 
@@ -174,7 +192,16 @@ class NMT(nn.Module):
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
         ### Except replace "self.model_embeddings.target" with "self.model_embeddings_target"
-
+        enc_hiddens_proj = self.att_projection(enc_hiddens)
+        Y = self.model_embeddings_target(target_padded)
+        dec_state = dec_init_state
+        Y_chunks = torch.split(Y, split_size_or_sections=1, dim=0)
+        for Y_t in Y_chunks:
+            Y_t = torch.squeeze(Y_t)
+            Ybar_t = torch.cat((Y_t, o_prev), dim=1)
+            dec_state, combined_output, e_t = self.step(Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks)
+            combined_outputs.append(combined_output)
+        combined_outputs = torch.stack(combined_outputs, dim=0)
 
         ### END YOUR CODE FROM ASSIGNMENT 4
 
@@ -209,8 +236,11 @@ class NMT(nn.Module):
         combined_output = None
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
-
-
+        dec_state = self.decoder(Ybar_t, dec_state)
+        dec_hidden, dec_cell = dec_state
+        dec_hidden = torch.unsqueeze(dec_hidden, dim=2)
+        e_t = torch.bmm(enc_hiddens_proj, dec_hidden)
+        e_t = torch.squeeze(e_t, dim=2)
         ### END YOUR CODE FROM ASSIGNMENT 4
 
 
@@ -220,10 +250,17 @@ class NMT(nn.Module):
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
 
+        alpha_t = torch.nn.functional.softmax(e_t)
+        alpha_t = torch.unsqueeze(alpha_t, dim=1)
+        a_t = torch.bmm(alpha_t, enc_hiddens)
+        a_t = torch.squeeze(a_t, dim=1)
+        dec_hidden = torch.squeeze(dec_hidden, dim=2)
+
+        U_t = torch.cat([dec_hidden, a_t], dim=1)
+        V_t = self.combined_output_projection(U_t)
+        O_t = self.dropout(torch.tanh(V_t))
 
         ### END YOUR CODE FROM ASSIGNMENT 4
-        
-
         combined_output = O_t
         return dec_state, combined_output, e_t
 
@@ -293,7 +330,6 @@ class NMT(nn.Module):
             y_t_embed = self.model_embeddings_target(y_tm1)
             y_t_embed = torch.squeeze(y_t_embed, dim=0)
 
-
             x = torch.cat([y_t_embed, att_tm1], dim=-1)
 
             (h_t, cell_t), att_t, _  = self.step(x, h_tm1,
@@ -360,11 +396,11 @@ class NMT(nn.Module):
         completed_hypotheses.sort(key=lambda hyp: hyp.score, reverse=True)
         return completed_hypotheses
 
-    # @property
-    # def device(self) -> torch.device:
-    #     """ Determine which device to place the Tensors upon, CPU or GPU.
-    #     """
-    #     return self.att_projection.weight.device
+    @property
+    def device(self) -> torch.device:
+        """ Determine which device to place the Tensors upon, CPU or GPU.
+        """
+        return self.att_projection.weight.device
 
     @staticmethod
     def load(model_path: str, no_char_decoder=False):
