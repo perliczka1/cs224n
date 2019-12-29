@@ -27,12 +27,17 @@ class CharDecoder(nn.Module):
         ### Hint: - Use target_vocab.char2id to access the character vocabulary for the target language.
         ###       - Set the padding_idx argument of the embedding matrix.
         ###       - Create a new Embedding layer. Do not reuse embeddings created in Part 1 of this assignment.
-        
+
+        super(CharDecoder, self).__init__()
+        self.charDecoder = nn.LSTM(input_size=char_embedding_size, hidden_size=hidden_size)
+        self.char_output_projection = nn.Linear(in_features=hidden_size, out_features=len(target_vocab.char2id))
+        self.decoderCharEmb = nn.Embedding(len(target_vocab.char2id), char_embedding_size, padding_idx=target_vocab.char2id['<pad>'])
+        self.target_vocab = target_vocab
+        self.loss = nn.CrossEntropyLoss(reduction='none')
 
         ### END YOUR CODE
 
 
-    
     def forward(self, input, dec_hidden=None):
         """ Forward pass of character decoder.
 
@@ -44,8 +49,10 @@ class CharDecoder(nn.Module):
         """
         ### YOUR CODE HERE for part 2b
         ### TODO - Implement the forward pass of the character decoder.
-        
-        
+        input_embedding = self.decoderCharEmb(input)
+        output, dec_hidden = self.charDecoder(input_embedding, dec_hidden)
+        scores = self.char_output_projection(output)
+        return scores, dec_hidden
         ### END YOUR CODE 
 
 
@@ -62,8 +69,13 @@ class CharDecoder(nn.Module):
         ###
         ### Hint: - Make sure padding characters do not contribute to the cross-entropy loss.
         ###       - char_sequence corresponds to the sequence x_1 ... x_{n+1} from the handout (e.g., <START>,m,u,s,i,c,<END>).
-
-
+        char_sequence_flat = char_sequence.view(-1)
+        enc_masks = (char_sequence_flat != self.target_vocab.char2id['<pad>']).float()
+        scores, _ = self.forward(char_sequence, dec_hidden)
+        scores_flat = scores.view(-1, len(self.target_vocab.char2id))
+        logg_for_all_char = self.loss(scores_flat, char_sequence_flat)
+        log_loss = (logg_for_all_char * enc_masks).sum()
+        return log_loss
         ### END YOUR CODE
 
     def decode_greedy(self, initialStates, device, max_length=21):
