@@ -33,7 +33,7 @@ class CharDecoder(nn.Module):
         self.char_output_projection = nn.Linear(in_features=hidden_size, out_features=len(target_vocab.char2id))
         self.decoderCharEmb = nn.Embedding(len(target_vocab.char2id), char_embedding_size, padding_idx=target_vocab.char2id['<pad>'])
         self.target_vocab = target_vocab
-        self.loss = nn.CrossEntropyLoss(reduction='none')
+        self.loss = nn.CrossEntropyLoss(ignore_index=self.target_vocab.char2id['<pad>'], reduction='sum')
 
         ### END YOUR CODE
 
@@ -69,12 +69,10 @@ class CharDecoder(nn.Module):
         ###
         ### Hint: - Make sure padding characters do not contribute to the cross-entropy loss.
         ###       - char_sequence corresponds to the sequence x_1 ... x_{n+1} from the handout (e.g., <START>,m,u,s,i,c,<END>).
-        char_sequence_flat = char_sequence.view(-1)
-        enc_masks = (char_sequence_flat != self.target_vocab.char2id['<pad>']).float()
-        scores, _ = self.forward(char_sequence, dec_hidden)
-        scores_flat = scores.view(-1, len(self.target_vocab.char2id))
-        logg_for_all_char = self.loss(scores_flat, char_sequence_flat)
-        log_loss = (logg_for_all_char * enc_masks).sum()
+
+        scores, _ = self.forward(char_sequence[:-1], dec_hidden)
+        scores = scores.permute(1, 2, 0)
+        log_loss = self.loss(scores, char_sequence[1:].transpose(1, 0))
         return log_loss
         ### END YOUR CODE
 
@@ -112,7 +110,7 @@ class CharDecoder(nn.Module):
                 elif i == self.target_vocab.start_of_word:
                     continue
                 else:
-                    result+= self.target_vocab.id2char[i]
+                    result += self.target_vocab.id2char[i]
             return result
 
         decodedWords = [_get_word(indices) for indices in decodedIndices]

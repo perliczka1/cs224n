@@ -100,8 +100,6 @@ class NMT(nn.Module):
         ###     - Add `source_padded_chars` for character level padded encodings for source
         ###     - Add `target_padded_chars` for character level padded encodings for target
         ###     - Modify calls to encode() and decode() to use the character level encodings
-
-
         ### END YOUR CODE
 
         P = F.log_softmax(self.target_vocab_projection(combined_outputs), dim=-1)
@@ -117,7 +115,7 @@ class NMT(nn.Module):
             max_word_len = target_padded_chars.shape[-1]
 
             target_words = target_padded[1:].contiguous().view(-1)
-            target_chars = target_padded_chars[1:].view(-1, max_word_len)
+            target_chars = target_padded_chars[1:].contiguous().view(-1, max_word_len)
             target_outputs = combined_outputs.view(-1, 256)
 
             target_chars_oov = target_chars #torch.index_select(target_chars, dim=0, index=oovIndices)
